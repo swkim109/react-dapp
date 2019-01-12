@@ -1,0 +1,22 @@
+.img-coin {
+    height:25%;
+    width:25%;
+    padding: 5px 40px 20px 10px; /* TOP RIGHT LEFT BOTTOM*/
+}
+/*
+.effect-h:hover {
+    content: url('http://localhost:3000/images/coin-h.png');
+}
+.effect-t:hover {
+    content: url('http://localhost:3000/images/coin-t.png');
+}
+*/
+
+div.container-fluid {
+    padding-top: 10px;
+}
+
+.custom-align-center {
+    text-align: center;
+    font-size: large;
+}
