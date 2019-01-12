@@ -1,4 +1,4 @@
-//메타마스크 계정
+//player
 module.exports = function(callback) {
 
     web3.eth.getAccounts().then((accounts, error) => {

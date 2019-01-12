@@ -1,4 +1,4 @@
-//컨트랙트
+//house
 module.exports = function(callback) {
 
     web3.eth.getAccounts().then((accounts, error) => {
