@@ -1,22 +1,48 @@
 .img-coin {
+    cursor: pointer;
     height:25%;
     width:25%;
-    padding: 5px 40px 20px 10px; /* TOP RIGHT LEFT BOTTOM*/
+    margin: 5px 40px 20px 10px; /* TOP RIGHT LEFT BOTTOM */
 }
-/*
-.effect-h:hover {
-    content: url('http://localhost:3000/images/coin-h.png');
-}
-.effect-t:hover {
-    content: url('http://localhost:3000/images/coin-t.png');
-}
-*/
 
 div.container-fluid {
-    padding-top: 10px;
+    padding-top: 30px;
 }
 
 .custom-align-center {
     text-align: center;
     font-size: large;
 }
+
+
+.modal-wrapper {
+    position: fixed;
+    top: 40%;
+    left: 30%;
+    z-index: 10;
+    background-color: #0f74a8;
+    padding: 70px 70px 70px 70px;
+    color: white;
+    font-size: medium;
+}
+
+.btn-confirm {
+    color: black;
+}
+
+.background-dummy {
+    position: fixed;
+    top: 2px;
+    left: 2px;
+    height: 100%;
+    width: 100%;
+    opacity: 0.5;
+    background-color: grey;
+    z-index: 5;
+}
+
+p {
+    font-family: Consolas, serif;
+    font-size: 18px;
+}
+

@@ -1,10 +1,8 @@
-pragma solidity ^0.5.0;
+pragma solidity 0.5.8;
 
 // ----------------------------------------------------------------------------
 // CoinToFlip.sol
 // Simple Coin flip game
-//
-// Educational purpose only.
 // ----------------------------------------------------------------------------
 contract CoinToFlip {
 
@@ -31,7 +29,7 @@ contract CoinToFlip {
 
     mapping (address => Bet) bets; //Bet book
 
-    event Reveal(uint reveal);//1 or 2
+    event Reveal(address indexed gambler, uint reveal, uint amount);//1 or 2
     event Payment(address indexed beneficiary, uint amount);
     event FailedPayment(address indexed beneficiary, uint amount);
 
@@ -53,14 +51,6 @@ contract CoinToFlip {
         sendFunds(beneficiary, withdrawAmount);
     }
 
-    function sendFunds(address payable beneficiary, uint amount) private {
-        if (beneficiary.send(amount)) {
-            emit Payment(beneficiary, amount);
-        } else {
-            emit FailedPayment(beneficiary, amount);
-        }
-    }
-
 
     function kill() external onlyOwner {
         require (lockedInBets == 0, "All bets should be processed before self-destruct.");
@@ -80,21 +70,13 @@ contract CoinToFlip {
         require (betMask > 0 && betMask < 256, "Mask should be 8 bit");
 
         Bet storage bet = bets[msg.sender]; //mapping bets(address => Bet)
-        //Bet bet = bets[msg.sender];
 
         require (bet.gambler == address(0), "Bet should be empty state."); //can place a bet
-        //if (bet.gambler == null) X
 
         //count bet bit in the betMask
         //0000 0011  number of bits = 2
         //0000 0001  number of bits = 1
         uint8 numOfBetBit = countBits(betMask);
-
-        bet.amount = amount;
-        bet.numOfBetBit = numOfBetBit;
-        bet.placeBlockNumber = block.number;
-        bet.mask = betMask;
-        bet.gambler = msg.sender;
 
         // need to lock possible winning amount to pay
         uint possibleWinningAmount = getWinningAmount(amount, numOfBetBit);
@@ -102,6 +84,12 @@ contract CoinToFlip {
 
         // Check whether house has enough ETH to pay the bet.
         require(lockedInBets < address(this).balance, "Cannot afford to pay the bet.");
+
+        bet.amount = amount;
+        bet.numOfBetBit = numOfBetBit;
+        bet.placeBlockNumber = block.number;
+        bet.mask = betMask;
+        bet.gambler = msg.sender;
     }
 
     function getWinningAmount(uint amount, uint8 numOfBetBit) private pure returns (uint winningAmount) {
@@ -114,17 +102,15 @@ contract CoinToFlip {
             houseFee = HOUSE_MIN_FEE;
         }
 
-        //reward calculation is depends on your own idea
+        //reward is depends on your own idea
         uint reward = amount / (MAX_CASE + (numOfBetBit-1));
 
         winningAmount = (amount - houseFee) + reward;
     }
 
     //
-    //
-    //
     //Reveal the coin by player
-    function revealResult(uint8 seed) external {
+    function revealResult() external {
 
         Bet storage bet = bets[msg.sender];
         uint amount = bet.amount;
@@ -132,14 +118,13 @@ contract CoinToFlip {
         uint placeBlockNumber = bet.placeBlockNumber;
         address payable gambler = bet.gambler;
 
-        require (amount > 0, "Bet should be in an 'active' state");
+        require (amount > 0, "Bet should be in an active state");
 
         // should be called after placeBet
         require(block.number > placeBlockNumber, "revealResult in the same block as placeBet, or before.");
 
         //RNG(Random Number Generator)
-        bytes32 random = keccak256(abi.encodePacked(blockhash(block.number-seed), blockhash(placeBlockNumber)));
-
+        bytes32 random = keccak256(abi.encodePacked(blockhash(block.number), blockhash(placeBlockNumber)));
         uint reveal = uint(random) % MAX_CASE; // 0 or 1
 
         uint winningAmount = 0;
@@ -150,14 +135,24 @@ contract CoinToFlip {
             winningAmount = possibleWinningAmount;
         }
 
-        emit Reveal(2 ** reveal);
+        emit Reveal(gambler, 2 ** reveal, winningAmount);
+
+        lockedInBets -= possibleWinningAmount;
+        clearBet(msg.sender);
 
         if (winningAmount > 0) {
             sendFunds(gambler, winningAmount);
         }
+    }
 
-        lockedInBets -= possibleWinningAmount;
-        clearBet(msg.sender);
+    function sendFunds(address payable beneficiary, uint amount) private {
+
+        if (beneficiary.send(amount)) {
+            emit Payment(beneficiary, amount);
+        } else {
+            // 실패하는 경우 대책은?
+            emit FailedPayment(beneficiary, amount);
+        }
     }
 
 
@@ -168,31 +163,31 @@ contract CoinToFlip {
         bet.numOfBetBit = 0;
         bet.placeBlockNumber = 0;
         bet.mask = 0;
-        bet.gambler = address(0); // NULL
+        bet.gambler = address(0);
     }
-
 
 
     //can refund before reveal
     function refundBet() external {
 
         Bet storage bet = bets[msg.sender];
+
+        uint8 numOfBetBit = bet.numOfBetBit;
         uint amount = bet.amount;
+        address payable gambler = bet.gambler;
 
         // Check that bet has been already mined.
         require(block.number > bet.placeBlockNumber, "refundBet in the same block as placeBet, or before.");
-        require (amount > 0, "Bet should be in an 'active' state");
-
-        uint8 numOfBetBit = bet.numOfBetBit;
-
-        // Send the refund.
-        sendFunds(bet.gambler, amount);
+        require(amount > 0, "Bet should be in an active state");
 
         uint possibleWinningAmount;
         possibleWinningAmount = getWinningAmount(amount, numOfBetBit);
 
         lockedInBets -= possibleWinningAmount;
         clearBet(msg.sender);
+
+        // Send the refund.
+        sendFunds(gambler, amount);
     }
 
 
@@ -209,6 +204,4 @@ contract CoinToFlip {
         }
         return count;
     }
-
-
 }

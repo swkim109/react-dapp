@@ -2,20 +2,19 @@ import React, { Component } from 'react';
 
 import {Grid, Row, Col, Panel, Image, Alert} from 'react-bootstrap';
 import {Button, ButtonGroup, ButtonToolbar} from 'react-bootstrap';
-import {InputGroup, FormControl, Radio, ListGroup, ListGroupItem} from 'react-bootstrap';
+import {InputGroup, FormControl, Radio} from 'react-bootstrap';
 import Glyphicon from 'react-bootstrap/lib/Glyphicon';
+import {CoinHeads, CoinHeadsI, CoinTails, CoinTailsI, CoinUnknown} from './images';
+import ModalWrapper from './ModalWrapper';
 
 import './css/bootstrap.min.css';
 import './css/style.css';
 
-//web3.js and contract
 import getWeb3 from './utils/getWeb3';
-//import truffleContract from 'truffle-contract';
-import CoinToFlip from './contracts/CoinToFlip.json'; /* link to /build/contracts */
+import CoinToFlip from './contracts/CoinToFlip.json';
 
 
 class CoinFlip extends Component {
-
 
     state = {
         web3: null,
@@ -28,73 +27,26 @@ class CoinFlip extends Component {
         checked: 0, //coin
         reveal: 0,
         reward: 0,
-        txList: []
+        pending: false
     };
 
     constructor(props) {
         super(props);
-
-        this.handleClickCoin = this.handleClickCoin.bind(this);
-        this.handleClickBet = this.handleClickBet.bind(this);
-        this.handleClickFlip = this.handleClickFlip.bind(this);
-        this.handleClickReset = this.handleClickReset.bind(this);
-        this.handleValChange = this.handleValChange.bind(this);
-        this.handleRefund = this.handleRefund.bind(this);
     }
 
-    handleClickCoin(e){
+    handleClickCoin = (e) => {
 
-        if (this.state.checked === 0) { // toggle
-
-            if (e.target.id === "Heads") {
-                this.setState({checked: 2});
-            } else if (e.target.id === "Tails") {
-                this.setState({checked: 1});
-            }
-
-        } else {
-            this.setState({checked: 0});
+        //TODO-1
+        if (e.target.id === "Heads") {
+            this.setState({checked: 2});
+        } else if (e.target.id === "Tails") {
+            this.setState({checked: 1});
         }
-    }
+    };
 
-
-    async handleClickBet() {
-
-        const {web3, accounts, contract} = this.state;  //object destructuring in ES6
-
-
-        if (!this.state.web3) {
-            console.log('App is not ready');
-            return;
-        }
-
-        //console.log("Account=" + accounts[0]); //Metamask account
-        if (accounts[0] === undefined) {
-            alert('Please press F5 to connect Dapp'); //need to refresh page
-            return;
-        }
-
-        if (this.state.value <= 0 || this.state.checked === 0) {
-            this.setState({show: true});
-
-        } else {
-
-            //let BN = web3.utils.BN;
-            //await contract.placeBet(this.state.checked, {from:accounts[0], value:web3.utils.toWei(new BN(this.state.value), 'ether')});
-            //await contract.placeBet(this.state.checked, {from:accounts[0], value:web3.utils.toWei(String(this.state.value), 'ether')});
-            await contract.methods.placeBet(this.state.checked).send({from:accounts[0], value:web3.utils.toWei(String(this.state.value), 'ether')});
-
-            //reset previous state
-            this.setState({show: false, reveal: 0, reward: 0});
-
-        }
-    }
-
-
-    async handleClickFlip() {
+    handleClickFlip = async () => {
 
         const {accounts, contract} = this.state;
-
         if (!this.state.web3) {
             console.log('App is not ready');
             return;
@@ -104,32 +56,89 @@ class CoinFlip extends Component {
             alert('Please press F5 to connect Dapp'); //need main page maybe?
             return;
         }
+        this.setState({pending: true});
+        //TODO-2
+        try {
+            await contract.methods.revealResult().send({from:accounts[0]});
 
-        let seed = Math.floor((Math.random() * 255) + 1); //1~255 integer
-        //console.log(seed);
+            this.saveBetStatus("");
+            this.setState({pending: false});
 
-        //await contract.revealResult(seed, {from:accounts[0]});
-        await contract.methods.revealResult(seed).send({from:accounts[0]});
+        } catch (error) {
+            console.log(error.message);
+            this.setState({pending: false});
+        }
+    };
+
+    handleClickBet = async () => {
+
+        const {web3, accounts, contract} = this.state;
+        if (!this.state.web3) {
+            console.log('App is not ready');
+            return;
+        }
+        if (accounts[0] === undefined) {
+            alert('Please press F5 to connect Dapp'); //Metamask account need to refresh page
+            return;
+        }
+
+
+        if (this.state.value <= 0 || this.state.checked === 0) {
+            this.setState({show: true});
+        } else {
+            this.setState({pending: true, show: false, reveal: 0, reward: 0,});
+            try {
+
+                if (!this.checkBetStatus()) {
+
+        //TODO-3
+        const r = await contract.methods.placeBet(this.state.checked).send(
+            {from:accounts[0], value:web3.utils.toWei(String(this.state.value), 'ether')});
+
+        console.log(r.transactionHash);
+        this.saveBetStatus(r.transactionHash);
+        this.setState({pending: false});
+
+                }
+
+            } catch (error) {
+                console.log(error.message);
+                this.setState({pending: false});
+            }
+        }
+    }
+
+    saveBetStatus = (txHash) => {
+        localStorage.setItem('txHash', txHash);
+        this.getHouseBalance();
+    }
+
+    checkBetStatus = () => {
+
+        let bBet = false;
+        if (localStorage.getItem("txHash") !== "") {
+            this.setState({pending: false});
+            alert('You have already bet 😅');
+            bBet = true;
+        }
+        return bBet;
     }
 
 
-    handleClickReset() {
+    handleClickReset = () => {
         this.setState({value: 0, checked: 0, reveal: 0, reward: 0});
 
-        this.getHouseBalance();
-        this.resetTxList();
-        this.input.value = '';
-
-        //window.location.reload();
+        this.saveBetStatus("");
+        this.inputEth.value = '';
     }
 
-    handleValChange (e) {
+    handleValChange = (e) => {
         this.setState({value: parseFloat(e.target.value)});
     }
 
-    async handleRefund () {
-        const {accounts, contract} = this.state;
+    handleRefund = async () => {
 
+        const {accounts, contract} = this.state;
 
         if (!this.state.web3) {
             console.log('App is not ready');
@@ -141,137 +150,40 @@ class CoinFlip extends Component {
             return;
         }
 
-        await contract.methods.refundBet().send({from:accounts[0]});
+        //TODO-5
+        const r = await contract.methods.refundBet().send({from:accounts[0]});
+        if (r.transactionHash !== "") {
+            this.saveBetStatus("");
+        }
     }
-
 
 
     getHouseBalance = () => {
         const {web3, contract} = this.state;
 
-        console.log(contract);
-
         web3.eth.getBalance(contract._address, (e, r) => {
-            //console.log(r);
             this.setState({houseBalance: web3.utils.fromWei(r, 'ether')});
         });
-
     };
 
 
-    //clear Tx List and get Tx List
-    resetTxList = () => {
-        this.setState({txList: []}, this.getReceiptList);
-    };
-
-
-    getReceiptList = async () => {
-
-        const {web3, accounts, contract} = this.state;
-        const lowerLimit = 50;
-
-        let result = [];
-
-        let blockNumber = await web3.eth.getBlockNumber();
-        console.log("Block Number=" + blockNumber);
-
-        let upperBlockNumber = blockNumber;
-        let lowerBlockNumber = (parseInt(upperBlockNumber, 10)-lowerLimit < 0)?0:upperBlockNumber-lowerLimit;
-
-        for (let i=upperBlockNumber; i>lowerBlockNumber; i--) {
-            let block = await web3.eth.getBlock(i, false);
-            //console.log(block);
-            if (block.transactions.length > 0) {
-
-                block.transactions.forEach(async function(txHash){
-
-                    //console.log(txHash);
-                    let tx = await web3.eth.getTransaction(txHash.toString());
-
-                    //console.log(tx.to + ":" + contract.address);
-                    //0xe65edCe2b80A43cD52C2B8B6422BF5055D5fC09B -- checksum OK in web3
-                    //0xe65edce2b80a43cd52c2b8b6422bf5055d5fc09b -- in truffle-contract.js
-                    if (tx != null && tx.from === accounts[0] && tx.to === contract._address) {
-                    //if (tx != null && tx.from === accounts[0] && tx.to.toLowerCase() === contract._address.toLowerCase()) {
-
-                        await web3.eth.getTransactionReceipt(tx.hash, function(e,r) {
-                            if (r.logs.length === 2) {
-                                result.push({"txhash": r.transactionHash,
-                                    "value": web3.utils.fromWei(web3.utils.toBN(r.logs[1].data).toString(), "ether")});
-                            } else if (r.logs.length === 1) {
-                                result.push({"txhash": r.transactionHash, "value": 0});
-                            }
-                        });
-                    }
-                });
-            }//if-end
-        }//for-end
-        this.setState({txList: result.splice(0,5)}); //5 items
-    };
-
-
-
-    //Event watch - reveal the coin
-    // watchEvent = (error, result) => {
-    //
-    //     if (!error) {
-    //         const {web3} = this.state;
-    //         //console.log(web3.utils.toDecimal(result.args.reveal));
-    //         this.setState({reveal: web3.utils.toDecimal(result.args.reveal), txList: []}, this.getReceiptList);
-    //
-    //     } else {
-    //         console.log(error);
-    //     }
-    //
-    // };
-
-    watchEvent = (result) => {
-        console.log(result.returnValues);
+    watchEvent = (event) => {
+        //console.log(event.returnValues);
         const {web3} = this.state;
-        //this.setState({reveal: web3.utils.toDecimal(result.args.reveal), txList: []}, this.getReceiptList);
-        this.setState({reveal: web3.utils.toDecimal(result.returnValues.reveal), txList: []}, this.getReceiptList);
+        const reveal = parseInt(event.returnValues.reveal);
+        const reward = web3.utils.fromWei(event.returnValues.amount.toString(), 'ether');
+        this.setState({reveal, reward});
     };
 
 
-    //Event watch - winning prize
-    // watchPaymentEvent = (error, result) => {
-    //
-    //     if (!error) {
-    //         const {web3} = this.state;
-    //
-    //         //console.log("reward=" + web3.utils.toBN(result.args.amount).toString());
-    //         let r = web3.utils.fromWei(web3.utils.toBN(result.args.amount).toString(), 'ether');
-    //         if (r > 0) {
-    //             this.setState({reward: r});
-    //         }
-    //     } else {
-    //         console.log(error);
-    //     }
-    // };
+    async componentDidMount() {
 
-    watchPaymentEvent = (result) => {
-        const {web3} = this.state;
-        //let r = web3.utils.fromWei(web3.utils.toBN(result.args.amount).toString(), 'ether');
-        let r = web3.utils.fromWei(web3.utils.toBN(result.returnValues.amount).toString(), 'ether');
-        if (r > 0) {
-            this.setState({reward: r});
-        }
-    }
-
-
-    componentDidMount = async () => {
         try {
             // Get network provider and web3 instance.
             const web3 = await getWeb3();
 
             // Use web3 to get the user's accounts.
-            const accounts = await web3.eth.getAccounts();
-
-            // Get the contract instance.
-            //const Contract = truffleContract(CoinToFlip);
-            //Contract.setProvider(web3.currentProvider);
-            //const instance = await Contract.deployed();
-
+            let accounts = await web3.eth.getAccounts();
 
             // Get the contract instance.
             const networkId = await web3.eth.net.getId();
@@ -281,48 +193,31 @@ class CoinFlip extends Component {
                 deployedNetwork && deployedNetwork.address,
             );
 
-
-            //truffle-contract 3.0.6
-            //instance.Reveal().watch((error, result) => this.watchEvent(error,result));
-            //instance.Payment().watch((error, result) => this.watchPaymentEvent(error,result));
-
-            //truffle-contract 4.0.0
+            //TODO-4
             instance.events.Reveal()
                 .on('data', (event) => this.watchEvent(event))
-                .on('error', (error) => console.log(error));
-            instance.events.Payment()
-                .on('data', (event) => this.watchPaymentEvent(event))
                 .on('error', (error) => console.log(error));
 
             this.setState({web3, accounts, contract: instance}, this.getHouseBalance);
 
         } catch (error) {
             // Catch any errors for any of the above operations.
-            alert(
-                'Failed to load web3, accounts, or contract. Check console for details.'
-            );
+            alert('Failed to load web3, accounts, or contract. Check console for details.');
             console.log(error);
         }
-    };
+    }
 
 
     render() {
 
-        let coin_h = "/images/coin-h-i.png";
-        let coin_t = "/images/coin-t-i.png";
+        let coin_h = CoinHeadsI;
+        let coin_t = CoinTailsI;
 
         if (this.state.checked === 2) {
-            coin_h = "/images/coin-h.png";
-            coin_t = "/images/coin-t-i.png";
+            coin_h = CoinHeads;
         } else if (this.state.checked === 1) {
-            coin_h = "/images/coin-h-i.png";
-            coin_t = "/images/coin-t.png";
+            coin_t = CoinTails;
         }
-
-        let coin = <div>
-                   <Image src={coin_h} id="Heads" onClick={this.handleClickCoin} className="img-coin" />
-                   <Image src={coin_t} id="Tails" onClick={this.handleClickCoin} className="img-coin" />
-               </div>
 
         return (
 
@@ -337,7 +232,10 @@ class CoinFlip extends Component {
                                 </Panel.Title>
                             </Panel.Heading>
                             <Panel.Body className="custom-align-center">
-                                {coin}
+                                <div>
+                                    <Image src={coin_h} id="Heads" onClick={this.handleClickCoin} className="img-coin" />
+                                    <Image src={coin_t} id="Tails" onClick={this.handleClickCoin} className="img-coin" />
+                                </div>
                             </Panel.Body>
                         </Panel>
                     </Col>
@@ -358,16 +256,17 @@ class CoinFlip extends Component {
 
                                 <form>
                                     <InputGroup style={{paddingBottom:'10px'}}>
-                                        <Radio name="coinRadioGroup" checked={this.state.checked === 2} inline disabled>
+                                        <Radio name="coinRadioGroup" id="Heads" onChange={this.handleClickCoin} checked={this.state.checked === 2} inline>
                                             Heads
                                         </Radio>{' '}
-                                        <Radio name="coinRadioGroup" checked={this.state.checked === 1} inline disabled>
+                                        <Radio name="coinRadioGroup" id="Tails" onChange={this.handleClickCoin} checked={this.state.checked === 1} inline>
                                             Tails
                                         </Radio>
                                     </InputGroup>
                                     <InputGroup style={{paddingBottom:'10px'}}>
                                         <InputGroup.Addon>ETH</InputGroup.Addon>
-                                        <FormControl type="number" placeholder="Enter number" bsSize="lg" onChange={this.handleValChange} inputRef={ref=>{this.input=ref;}}/>
+                                        <FormControl type="number" placeholder="Enter number" bsSize="lg"
+                                                     onChange={this.handleValChange} inputRef={(ref)=>this.inputEth=ref}/>
                                     </InputGroup>
                                     <AlertMsg flag={this.state.show}/>
                                 </form>
@@ -381,10 +280,10 @@ class CoinFlip extends Component {
                                             Flip!
                                         </Button>
                                         <Button href="#" bsSize="large" onClick={this.handleRefund}>
-                                            Cancel
+                                            Refund
                                         </Button>
                                         <Button href="#" bsStyle="info" bsSize="large" onClick={this.handleClickReset}>
-                                            Reset
+                                            Clear
                                         </Button>
                                     </ButtonGroup>
                                 </ButtonToolbar>
@@ -396,18 +295,19 @@ class CoinFlip extends Component {
                         <Panel bsStyle="info">
                             <Panel.Heading>
                                 <Panel.Title>
-                                    <Glyphicon glyph="signal" /> Transactions - 5 transactions in the last 50 blocks
+                                    <Glyphicon glyph="signal" /> Transactions
                                 </Panel.Title>
                             </Panel.Heading>
                             <Panel.Body>
-                                <TxList result={this.state.txList}/>
+                                <b>{localStorage.getItem("txHash")!==""?"BET":null}</b>
                             </Panel.Body>
                         </Panel>
                     </Col>
                 </Row>
+                {this.state.pending?<PendingModal>Ready to Send Your Transaction...</PendingModal>:null}
             </Grid>
-        )
 
+        )
     }
 }
 
@@ -427,11 +327,11 @@ function AlertMsg(props) {
 //functional component
 function Reveal(props) {
 
-    let coinImg = "/images/coin-unknown.png";
+    let coinImg = CoinUnknown;
     if (props.reveal === 2) {
-        coinImg =  "/images/coin-h.png";
+        coinImg = CoinHeads;
     } else if (props.reveal === 1) {
-        coinImg = "/images/coin-t.png";
+        coinImg = CoinTails;
     }
 
     let coin = <Image src={coinImg} className="img-coin" />
@@ -451,20 +351,12 @@ function Reveal(props) {
     );
 }
 
-//functional component
-function TxList(props) {
 
-    let result = props.result;
-    let txList = result.map (
-        e => (<ListGroupItem key={e.txhash} bsStyle={e.value>0?"success":"danger"}>{e.txhash} (<b>{e.value}</b> ETH)</ListGroupItem>)
-    );
-
-    return (
-        <ListGroup>
-            {txList}
-        </ListGroup>
-    );
-}
+const PendingModal = ({children}) => (
+    <ModalWrapper>
+        <div style={{marginBottom: '10px'}}>{children}</div>
+    </ModalWrapper>
+);
 
 
 export default CoinFlip;
