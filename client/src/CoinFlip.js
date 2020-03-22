@@ -22,7 +22,7 @@ class CoinFlip extends Component {
         contract: null,
 
         houseBalance: 0,
-        show: false,
+        show: {flag: false, msg: ''},
         value: 0, //wager
         checked: 0, //coin
         reveal: 0,
@@ -57,12 +57,13 @@ class CoinFlip extends Component {
             return;
         }
         this.setState({pending: true});
+
         //TODO-2
         try {
             await contract.methods.revealResult().send({from:accounts[0]});
 
             this.saveBetStatus("");
-            this.setState({pending: false});
+            this.setState({pending: false, show: {flag: false, msg: ''}});
 
         } catch (error) {
             console.log(error.message);
@@ -84,21 +85,23 @@ class CoinFlip extends Component {
 
 
         if (this.state.value <= 0 || this.state.checked === 0) {
-            this.setState({show: true});
+
+            this.setState({show: {flag: true, msg: 'You should bet bigger than 0.01 ETH'}});
+
         } else {
-            this.setState({pending: true, show: false, reveal: 0, reward: 0,});
+
+            this.setState({pending: true, show: {flag: false, msg: ''}, reveal: 0, reward: 0,});
             try {
 
                 if (!this.checkBetStatus()) {
 
-        //TODO-3
-        const r = await contract.methods.placeBet(this.state.checked).send(
-            {from:accounts[0], value:web3.utils.toWei(String(this.state.value), 'ether')});
+                    //TODO-3
+                    const r = await contract.methods.placeBet(this.state.checked).send(
+                        {from:accounts[0], value:web3.utils.toWei(String(this.state.value), 'ether')});
 
-        console.log(r.transactionHash);
-        this.saveBetStatus(r.transactionHash);
-        this.setState({pending: false});
-
+                    console.log(r.transactionHash);
+                    this.saveBetStatus(r.transactionHash);
+                    this.setState({pending: false});
                 }
 
             } catch (error) {
@@ -118,7 +121,8 @@ class CoinFlip extends Component {
         let bBet = false;
         if (localStorage.getItem("txHash") !== "") {
             this.setState({pending: false});
-            alert('You have already bet 😅');
+            //alert('You have already bet 😅');
+            this.setState({show: {flag: true, msg: 'You have already bet! 😅'}});
             bBet = true;
         }
         return bBet;
@@ -198,6 +202,14 @@ class CoinFlip extends Component {
                 .on('data', (event) => this.watchEvent(event))
                 .on('error', (error) => console.log(error));
 
+
+            // Metamask event subscription
+            // web3.currentProvider.publicConfigStore.on("update", (r) => {
+            //     if (r !== undefined) {
+            //         console.log(r);
+            //     }
+            // });
+
             this.setState({web3, accounts, contract: instance}, this.getHouseBalance);
 
         } catch (error) {
@@ -228,7 +240,7 @@ class CoinFlip extends Component {
                         <Panel bsStyle="info">
                             <Panel.Heading>
                                 <Panel.Title>
-                                    <Glyphicon glyph="thumbs-up" /> House: {this.state.houseBalance} ETH
+                                    <Glyphicon glyph="thumbs-up" /> House balance: Ξ {this.state.houseBalance}
                                 </Panel.Title>
                             </Panel.Heading>
                             <Panel.Body className="custom-align-center">
@@ -266,9 +278,9 @@ class CoinFlip extends Component {
                                     <InputGroup style={{paddingBottom:'10px'}}>
                                         <InputGroup.Addon>ETH</InputGroup.Addon>
                                         <FormControl type="number" placeholder="Enter number" bsSize="lg"
-                                                     onChange={this.handleValChange} inputRef={(ref)=>this.inputEth=ref}/>
+                                                     onChange={this.handleValChange} inputRef={(ref)=>this.inputEth=ref} min={0.01} max={10} step={0.01}/>
                                     </InputGroup>
-                                    <AlertMsg flag={this.state.show}/>
+                                    <AlertMsg show={this.state.show}/>
                                 </form>
 
                                 <ButtonToolbar>
@@ -299,12 +311,12 @@ class CoinFlip extends Component {
                                 </Panel.Title>
                             </Panel.Heading>
                             <Panel.Body>
-                                <b>{localStorage.getItem("txHash")!==""?"BET":null}</b>
+                                <a href={`https://rinkeby.etherscan.io/tx/${localStorage.getItem("txHash")}`} target={"_blank"}><b>{localStorage.getItem("txHash")!==""?localStorage.getItem("txHash"):null}</b></a>
                             </Panel.Body>
                         </Panel>
                     </Col>
                 </Row>
-                {this.state.pending?<PendingModal>Ready to Send Your Transaction...</PendingModal>:null}
+                {this.state.pending?<PendingModal>Please sign your transaction.<span role={"img"} aria-describedby="emoji">🔑</span></PendingModal>:null}
             </Grid>
 
         )
@@ -314,10 +326,10 @@ class CoinFlip extends Component {
 //functional component
 function AlertMsg(props) {
 
-    if (props.flag) {
+    if (props.show.flag) {
         return (
             <Alert bsStyle="danger">
-                <strong>You should flip the coin and bet bigger than 0.01 ETH</strong>
+                <strong>{props.show.msg}</strong>
             </Alert>
         )
     }
@@ -345,7 +357,7 @@ function Reveal(props) {
             </Panel.Heading>
             <Panel.Body className="custom-align-center">
                 {coin}
-                {props.reward} ETH
+                Ξ {props.reward}{props.reward>0?" YOU WIN!":null}
             </Panel.Body>
         </Panel>
     );
@@ -354,7 +366,7 @@ function Reveal(props) {
 
 const PendingModal = ({children}) => (
     <ModalWrapper>
-        <div style={{marginBottom: '10px'}}>{children}</div>
+        <div className={"toast"}>{children}</div>
     </ModalWrapper>
 );
 

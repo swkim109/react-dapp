@@ -32,8 +32,8 @@ div.container-fluid {
 
 .background-dummy {
     position: fixed;
-    top: 2px;
-    left: 2px;
+    top: 0px;
+    left: 0px;
     height: 100%;
     width: 100%;
     opacity: 0.5;
@@ -46,3 +46,10 @@ p {
     font-size: 18px;
 }
 
+
+.toast {
+    margin-bottom: 10px;
+    font-family: Consolas, serif;
+    font-size: 20px;
+    font-weight: bold;
+}
