@@ -1,5 +1,5 @@
 ## react-dapp
-Simple coin flip game using Truffle react box
+Simple game using Truffle react box
 
 Truffle v5.1.11 (core: 5.1.11)  
 Solidity v0.5.8 (solc-js)  
