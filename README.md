@@ -1,4 +1,4 @@
-# react-dapp
+## react-dapp
 Simple coin flip game using Truffle react box
 
 Truffle v5.1.11 (core: 5.1.11)  
